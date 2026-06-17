@@ -11,9 +11,18 @@ panel whose agent can read, search, write, and edit files and run shell commands
   API key, or fall back to a built-in key for Gemini/Claude when configured (OpenAI is
   your-key-only).
 - **Agentic loop** — the model calls tools, sees the results, and keeps going until the task is
-  done.
+  done, including running tests/builds and iterating ("fix until green").
 - **Tools the model can use**: `read_file`, `write_file`, `edit_file`, `list_dir`,
-  `run_command`, `search`.
+  `run_command`, `search`, `git_status`, `git_diff`, `git_commit`.
+- **Git integration** — a Source Control panel (stage/unstage, per-file and combined diffs),
+  AI-**generated commit messages**, and an **Explain changes** review of the working tree.
+- **Checkpoint / undo** — each agent run is snapshotted, so a multi-file run can be rolled back
+  in one click, not just per-file.
+- **@-mentions** — type `@path` in chat to attach files or folders to the model's context.
+- **Inline edit (⌘/Ctrl+K)** — select code in the editor, describe a change, get a diff in place.
+- **Rules file** — drop an `AGENTS.md`, `.acyrxrules`, `.cursorrules`, or `CLAUDE.md` in the
+  project root and the agent reads it every turn for your conventions.
+- **Token & cost tracking** — per-session token counts and an estimated cost in the chat header.
 - **Human-in-the-loop safety** — every file write/edit shows an **inline Monaco diff** you must
   **Accept/Reject**; potentially destructive commands require confirmation.
 - **Streaming chat** with collapsible tool calls and results.
