@@ -1,11 +1,12 @@
 import { useEffect } from 'react'
 import { useStore } from './store'
 import Toolbar from './components/Toolbar'
-import FileExplorer from './components/FileExplorer'
+import Sidebar from './components/Sidebar'
 import EditorPane from './components/EditorPane'
 import ChatPanel from './components/ChatPanel'
 import TerminalPanel from './components/TerminalPanel'
 import SettingsModal from './components/SettingsModal'
+import DiffViewerModal from './components/DiffViewerModal'
 import ResizeHandle from './components/ResizeHandle'
 
 export default function App(): JSX.Element {
@@ -76,7 +77,7 @@ export default function App(): JSX.Element {
         {sidebarVisible && (
           <>
             <div className="shrink-0 bg-bg-alt" style={{ width: sidebarWidth }}>
-              <FileExplorer />
+              <Sidebar />
             </div>
             <ResizeHandle orientation="vertical" onResize={(d) => setSidebarWidth(sidebarWidth + d)} />
           </>
@@ -103,6 +104,7 @@ export default function App(): JSX.Element {
         </div>
       </div>
       {settingsOpen && <SettingsModal />}
+      <DiffViewerModal />
     </div>
   )
 }

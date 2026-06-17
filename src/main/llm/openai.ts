@@ -60,17 +60,24 @@ export const openaiProvider: LLMProvider = {
       {
         model: params.model,
         messages: toMessages(params.system, params.messages),
-        tools: params.tools.map(toTool),
-        stream: true
+        tools: params.tools.length ? params.tools.map(toTool) : undefined,
+        stream: true,
+        stream_options: { include_usage: true }
       },
       { signal: params.signal }
     )
 
     let text = ''
+    let inputTokens = 0
+    let outputTokens = 0
     const acc: Record<number, { id: string; name: string; args: string }> = {}
 
     for await (const chunk of stream) {
       if (params.signal.aborted) break
+      if (chunk.usage) {
+        inputTokens = chunk.usage.prompt_tokens ?? inputTokens
+        outputTokens = chunk.usage.completion_tokens ?? outputTokens
+      }
       const delta = chunk.choices[0]?.delta
       if (!delta) continue
       if (delta.content) {
@@ -96,7 +103,7 @@ export const openaiProvider: LLMProvider = {
         args: a.args ? safeParse(a.args) : {}
       }))
 
-    return { text, toolCalls }
+    return { text, toolCalls, usage: { inputTokens, outputTokens } }
   }
 }
 

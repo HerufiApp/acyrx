@@ -72,6 +72,12 @@ interface AppState {
   sidebarVisible: boolean
   terminalVisible: boolean
   settingsOpen: boolean
+  sidebarView: 'explorer' | 'git'
+  diffViewer: { title: string; diff: string } | null
+
+  /* agent run extras */
+  lastCheckpoint: { id: string; fileCount: number } | null
+  usage: { inputTokens: number; outputTokens: number; costUsd: number }
 
   /* panel sizes (px) */
   sidebarWidth: number
@@ -99,6 +105,10 @@ interface AppState {
   toggleSidebar: () => void
   toggleTerminal: (v?: boolean) => void
   setSettingsOpen: (v: boolean) => void
+  setSidebarView: (v: 'explorer' | 'git') => void
+  openDiffViewer: (title: string, diff: string) => void
+  closeDiffViewer: () => void
+  clearCheckpoint: () => void
   setSidebarWidth: (w: number) => void
   setChatWidth: (w: number) => void
   setTerminalHeight: (h: number) => void
@@ -126,6 +136,11 @@ export const useStore = create<AppState>((set, get) => ({
   sidebarVisible: true,
   terminalVisible: true,
   settingsOpen: false,
+  sidebarView: 'explorer',
+  diffViewer: null,
+
+  lastCheckpoint: null,
+  usage: { inputTokens: 0, outputTokens: 0, costUsd: 0 },
 
   sidebarWidth: 240,
   chatWidth: 384,
@@ -141,7 +156,9 @@ export const useStore = create<AppState>((set, get) => ({
       activePath: null,
       messages: [],
       pendingEdits: [],
-      pendingCommands: []
+      pendingCommands: [],
+      lastCheckpoint: null,
+      usage: { inputTokens: 0, outputTokens: 0, costUsd: 0 }
     }),
 
   setChildren: (path, entries) =>
@@ -280,6 +297,20 @@ export const useStore = create<AppState>((set, get) => ({
         set({ pendingCommands: st.pendingCommands.filter((p) => p.id !== e.id) })
         break
 
+      case 'usage':
+        set((s) => ({
+          usage: {
+            inputTokens: s.usage.inputTokens + e.inputTokens,
+            outputTokens: s.usage.outputTokens + e.outputTokens,
+            costUsd: s.usage.costUsd + e.costUsd
+          }
+        }))
+        break
+
+      case 'checkpoint':
+        set({ lastCheckpoint: { id: e.id, fileCount: e.fileCount } })
+        break
+
       case 'turn-done':
       case 'cancelled':
         set({ agentRunning: false, currentAgentTextId: null })
@@ -311,6 +342,10 @@ export const useStore = create<AppState>((set, get) => ({
   toggleSidebar: () => set((st) => ({ sidebarVisible: !st.sidebarVisible })),
   toggleTerminal: (v) => set((st) => ({ terminalVisible: v ?? !st.terminalVisible })),
   setSettingsOpen: (v) => set({ settingsOpen: v }),
+  setSidebarView: (v) => set({ sidebarView: v }),
+  openDiffViewer: (title, diff) => set({ diffViewer: { title, diff } }),
+  closeDiffViewer: () => set({ diffViewer: null }),
+  clearCheckpoint: () => set({ lastCheckpoint: null }),
   setSidebarWidth: (w) => set({ sidebarWidth: clamp(w, 140, 560) }),
   setChatWidth: (w) => set({ chatWidth: clamp(w, 280, 720) }),
   setTerminalHeight: (h) => set({ terminalHeight: clamp(h, 80, 600) })

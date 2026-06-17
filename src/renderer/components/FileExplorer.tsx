@@ -51,15 +51,10 @@ export default function FileExplorer(): JSX.Element {
   const roots = children[ROOT] ?? []
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex h-7 items-center px-3 text-[11px] font-semibold uppercase tracking-wide opacity-60">
-        Explorer
-      </div>
-      <div className="min-h-0 flex-1 overflow-auto pb-2">
-        {roots.map((entry) => (
-          <TreeNode key={entry.path} entry={entry} depth={0} loadDir={loadDir} />
-        ))}
-      </div>
+    <div className="h-full overflow-auto py-1">
+      {roots.map((entry) => (
+        <TreeNode key={entry.path} entry={entry} depth={0} loadDir={loadDir} />
+      ))}
     </div>
   )
 }

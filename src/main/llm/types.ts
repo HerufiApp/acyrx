@@ -42,9 +42,15 @@ export interface RunTurnParams {
   onText: (delta: string) => void
 }
 
+export interface Usage {
+  inputTokens: number
+  outputTokens: number
+}
+
 export interface TurnResult {
   text: string
   toolCalls: ToolCall[]
+  usage: Usage
 }
 
 export interface LLMProvider {

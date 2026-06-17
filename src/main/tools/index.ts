@@ -5,6 +5,7 @@ import { editFile } from './editFile'
 import { listDir } from './listDir'
 import { runCommand } from './runCommand'
 import { search } from './search'
+import { gitStatusTool, gitDiffTool, gitCommitTool } from './git'
 
 export interface ToolContext {
   /** Aborts in-flight work (e.g. a running command) when the turn is cancelled. */
@@ -33,6 +34,12 @@ export async function runTool(
       return runCommand(args as never, ctx)
     case 'search':
       return search(args as never)
+    case 'git_status':
+      return gitStatusTool()
+    case 'git_diff':
+      return gitDiffTool(args as never)
+    case 'git_commit':
+      return gitCommitTool(args as never)
     default:
       throw new Error(`Unknown tool: ${name}`)
   }

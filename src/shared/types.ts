@@ -90,6 +90,9 @@ export type ToolName =
   | 'list_dir'
   | 'run_command'
   | 'search'
+  | 'git_status'
+  | 'git_diff'
+  | 'git_commit'
 
 export interface ToolCallArgs {
   read_file: { path: string }
@@ -98,6 +101,27 @@ export interface ToolCallArgs {
   list_dir: { path?: string }
   run_command: { command: string }
   search: { pattern: string }
+  git_status: Record<string, never>
+  git_diff: { staged?: boolean; path?: string }
+  git_commit: { message: string; all?: boolean }
+}
+
+/* ------------------------------------------------------------------ */
+/* Git                                                                 */
+/* ------------------------------------------------------------------ */
+
+export interface GitFileChange {
+  /** Path relative to the project root. */
+  path: string
+  /** Short status code, e.g. "M", "A", "D", "R", "??". */
+  status: string
+  staged: boolean
+}
+
+export interface GitStatus {
+  isRepo: boolean
+  branch: string
+  changes: GitFileChange[]
 }
 
 /* ------------------------------------------------------------------ */
@@ -120,6 +144,15 @@ export type AgentEvent =
   | { type: 'edit-resolved'; id: string; accepted: boolean }
   | { type: 'command-confirm'; id: string; command: string; reason: string }
   | { type: 'command-resolved'; id: string; accepted: boolean }
+  | {
+      type: 'usage'
+      provider: Provider
+      model: string
+      inputTokens: number
+      outputTokens: number
+      costUsd: number
+    }
+  | { type: 'checkpoint'; id: string; fileCount: number }
   | { type: 'turn-done' }
   | { type: 'cancelled' }
   | { type: 'error'; message: string }
@@ -148,11 +181,21 @@ export const IPC = {
   projectGet: 'project:get',
   fsReadFile: 'fs:readFile',
   fsListDir: 'fs:listDir',
+  fsListFiles: 'fs:listFiles',
   fsSaveFile: 'fs:saveFile',
   agentSend: 'agent:send',
   agentCancel: 'agent:cancel',
   agentResolveEdit: 'agent:resolveEdit',
   agentResolveCommand: 'agent:resolveCommand',
+  agentUndoCheckpoint: 'agent:undoCheckpoint',
+  agentInlineEdit: 'agent:inlineEdit',
+  gitStatus: 'git:status',
+  gitDiff: 'git:diff',
+  gitStage: 'git:stage',
+  gitUnstage: 'git:unstage',
+  gitCommit: 'git:commit',
+  gitGenerateMessage: 'git:generateMessage',
+  gitExplain: 'git:explain',
   // send (main -> renderer, streaming)
   evtAgent: 'evt:agent',
   evtFsChange: 'evt:fsChange',
@@ -198,6 +241,26 @@ export interface ResolveCommandRequest {
   accept: boolean
 }
 
+export interface InlineEditRequest {
+  path: string
+  /** Full current contents of the file (editor buffer). */
+  fullText: string
+  /** Character offsets of the selection within fullText. */
+  start: number
+  end: number
+  instruction: string
+}
+
+export interface GitDiffRequest {
+  path?: string
+  staged?: boolean
+}
+
+export interface GitCommitRequest {
+  message: string
+  all?: boolean
+}
+
 /* ------------------------------------------------------------------ */
 /* The API exposed on window.codex by the preload bridge               */
 /* ------------------------------------------------------------------ */
@@ -213,12 +276,23 @@ export interface CodexApi {
   getProject(): Promise<ProjectInfo | null>
   readFile(path: string): Promise<ReadFileResult>
   listDir(path?: string): Promise<DirEntry[]>
+  listFiles(): Promise<string[]>
   saveFile(req: SaveFileRequest): Promise<{ ok: boolean }>
   // agent
   sendMessage(message: string): Promise<void>
   cancel(): Promise<void>
   resolveEdit(req: ResolveEditRequest): Promise<void>
   resolveCommand(req: ResolveCommandRequest): Promise<void>
+  undoCheckpoint(id: string): Promise<{ restored: number }>
+  inlineEdit(req: InlineEditRequest): Promise<void>
+  // git
+  gitStatus(): Promise<GitStatus>
+  gitDiff(req: GitDiffRequest): Promise<string>
+  gitStage(path: string): Promise<void>
+  gitUnstage(path: string): Promise<void>
+  gitCommit(req: GitCommitRequest): Promise<{ ok: boolean; output: string }>
+  gitGenerateMessage(): Promise<string>
+  gitExplain(): Promise<string>
   // subscriptions (return an unsubscribe fn)
   onAgentEvent(cb: (e: AgentEvent) => void): () => void
   onFsChange(cb: (c: FsChange) => void): () => void

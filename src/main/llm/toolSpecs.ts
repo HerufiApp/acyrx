@@ -81,5 +81,34 @@ export const toolSpecs: ToolSpec[] = [
       },
       required: ['pattern']
     }
+  },
+  {
+    name: 'git_status',
+    description: 'Show the git status of the project (branch, staged and unstaged changes).',
+    parameters: { type: 'object', properties: {} }
+  },
+  {
+    name: 'git_diff',
+    description: 'Show the git diff of the working tree (or staged changes, or a single file).',
+    parameters: {
+      type: 'object',
+      properties: {
+        staged: { type: 'boolean', description: 'If true, show staged changes (git diff --cached).' },
+        path: { type: 'string', description: 'Optional file path to limit the diff to.' }
+      }
+    }
+  },
+  {
+    name: 'git_commit',
+    description:
+      'Create a git commit with the given message. Set all=true to stage all changes first (git add -A).',
+    parameters: {
+      type: 'object',
+      properties: {
+        message: { type: 'string', description: 'The commit message.' },
+        all: { type: 'boolean', description: 'Stage all changes before committing.' }
+      },
+      required: ['message']
+    }
   }
 ]

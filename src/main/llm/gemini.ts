@@ -77,6 +77,8 @@ export const geminiProvider: LLMProvider = {
     })
 
     let text = ''
+    let inputTokens = 0
+    let outputTokens = 0
     const toolCalls: TurnResult['toolCalls'] = []
     for await (const chunk of stream) {
       if (params.signal.aborted) break
@@ -95,7 +97,12 @@ export const geminiProvider: LLMProvider = {
           })
         }
       }
+      const usage = chunk.usageMetadata
+      if (usage) {
+        inputTokens = usage.promptTokenCount ?? inputTokens
+        outputTokens = usage.candidatesTokenCount ?? outputTokens
+      }
     }
-    return { text, toolCalls }
+    return { text, toolCalls, usage: { inputTokens, outputTokens } }
   }
 }

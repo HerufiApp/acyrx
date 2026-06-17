@@ -80,9 +80,16 @@ export const anthropicProvider: LLMProvider = {
           })
         }
       }
-      return { text, toolCalls }
+      return {
+        text,
+        toolCalls,
+        usage: {
+          inputTokens: final.usage.input_tokens ?? 0,
+          outputTokens: final.usage.output_tokens ?? 0
+        }
+      }
     } catch (e) {
-      if (params.signal.aborted) return { text: '', toolCalls: [] }
+      if (params.signal.aborted) return { text: '', toolCalls: [], usage: { inputTokens: 0, outputTokens: 0 } }
       throw e
     } finally {
       params.signal.removeEventListener('abort', onAbort)
