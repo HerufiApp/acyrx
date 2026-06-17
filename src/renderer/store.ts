@@ -1,0 +1,317 @@
+import { create } from 'zustand'
+import type {
+  Settings,
+  ProjectInfo,
+  DirEntry,
+  AgentEvent,
+  ToolName
+} from '@shared/types'
+
+/* ---------------- chat model ---------------- */
+
+export type ChatItem =
+  | { kind: 'user'; id: string; text: string }
+  | { kind: 'agent'; id: string; text: string }
+  | {
+      kind: 'tool'
+      id: string
+      name: ToolName
+      args: Record<string, unknown>
+      status: 'running' | 'ok' | 'error'
+      summary?: string
+    }
+  | { kind: 'notice'; id: string; text: string; tone: 'error' | 'info' }
+
+export interface EditorFile {
+  path: string
+  content: string
+  original: string
+  dirty: boolean
+}
+
+export interface PendingEdit {
+  id: string
+  tool: 'write_file' | 'edit_file'
+  path: string
+  oldContent: string
+  newContent: string
+}
+
+export interface PendingCommand {
+  id: string
+  command: string
+  reason: string
+}
+
+let counter = 0
+const uid = (): string => `r${Date.now()}-${counter++}`
+
+interface AppState {
+  /* settings / project */
+  settings: Settings | null
+  project: ProjectInfo | null
+
+  /* explorer (lazy): dir path -> children, plus expanded set */
+  children: Record<string, DirEntry[]>
+  expanded: Set<string>
+
+  /* editor */
+  openFiles: EditorFile[]
+  activePath: string | null
+
+  /* approvals */
+  pendingEdits: PendingEdit[]
+  pendingCommands: PendingCommand[]
+
+  /* chat */
+  messages: ChatItem[]
+  currentAgentTextId: string | null
+  agentRunning: boolean
+
+  /* ui */
+  sidebarVisible: boolean
+  terminalVisible: boolean
+  settingsOpen: boolean
+
+  /* panel sizes (px) */
+  sidebarWidth: number
+  chatWidth: number
+  terminalHeight: number
+
+  /* actions */
+  setSettings: (s: Settings) => void
+  setProject: (p: ProjectInfo | null) => void
+  setChildren: (path: string, entries: DirEntry[]) => void
+  toggleExpanded: (path: string, expanded: boolean) => void
+
+  openFile: (file: EditorFile) => void
+  closeFile: (path: string) => void
+  setActive: (path: string | null) => void
+  updateFileContent: (path: string, content: string) => void
+  markSaved: (path: string) => void
+  reloadFile: (path: string, content: string) => void
+
+  addUserMessage: (text: string) => void
+  applyAgentEvent: (e: AgentEvent) => void
+  shiftPendingEdit: () => void
+  shiftPendingCommand: () => void
+
+  toggleSidebar: () => void
+  toggleTerminal: (v?: boolean) => void
+  setSettingsOpen: (v: boolean) => void
+  setSidebarWidth: (w: number) => void
+  setChatWidth: (w: number) => void
+  setTerminalHeight: (h: number) => void
+}
+
+const clamp = (v: number, min: number, max: number): number => Math.max(min, Math.min(max, v))
+
+export const useStore = create<AppState>((set, get) => ({
+  settings: null,
+  project: null,
+
+  children: {},
+  expanded: new Set<string>(),
+
+  openFiles: [],
+  activePath: null,
+
+  pendingEdits: [],
+  pendingCommands: [],
+
+  messages: [],
+  currentAgentTextId: null,
+  agentRunning: false,
+
+  sidebarVisible: true,
+  terminalVisible: true,
+  settingsOpen: false,
+
+  sidebarWidth: 240,
+  chatWidth: 384,
+  terminalHeight: 224,
+
+  setSettings: (s) => set({ settings: s }),
+  setProject: (p) =>
+    set({
+      project: p,
+      children: {},
+      expanded: new Set<string>(),
+      openFiles: [],
+      activePath: null,
+      messages: [],
+      pendingEdits: [],
+      pendingCommands: []
+    }),
+
+  setChildren: (path, entries) =>
+    set((st) => ({ children: { ...st.children, [path]: entries } })),
+
+  toggleExpanded: (path, expanded) =>
+    set((st) => {
+      const next = new Set(st.expanded)
+      if (expanded) next.add(path)
+      else next.delete(path)
+      return { expanded: next }
+    }),
+
+  openFile: (file) =>
+    set((st) => {
+      const exists = st.openFiles.find((f) => f.path === file.path)
+      const openFiles = exists
+        ? st.openFiles.map((f) => (f.path === file.path ? file : f))
+        : [...st.openFiles, file]
+      return { openFiles, activePath: file.path }
+    }),
+
+  closeFile: (path) =>
+    set((st) => {
+      const openFiles = st.openFiles.filter((f) => f.path !== path)
+      let activePath = st.activePath
+      if (activePath === path) {
+        activePath = openFiles.length ? openFiles[openFiles.length - 1].path : null
+      }
+      return { openFiles, activePath }
+    }),
+
+  setActive: (path) => set({ activePath: path }),
+
+  updateFileContent: (path, content) =>
+    set((st) => ({
+      openFiles: st.openFiles.map((f) =>
+        f.path === path ? { ...f, content, dirty: content !== f.original } : f
+      )
+    })),
+
+  markSaved: (path) =>
+    set((st) => ({
+      openFiles: st.openFiles.map((f) =>
+        f.path === path ? { ...f, original: f.content, dirty: false } : f
+      )
+    })),
+
+  reloadFile: (path, content) =>
+    set((st) => ({
+      openFiles: st.openFiles.map((f) =>
+        f.path === path ? { ...f, content, original: content, dirty: false } : f
+      )
+    })),
+
+  addUserMessage: (text) =>
+    set((st) => ({
+      messages: [...st.messages, { kind: 'user', id: uid(), text }],
+      currentAgentTextId: null
+    })),
+
+  applyAgentEvent: (e) => {
+    const st = get()
+    switch (e.type) {
+      case 'turn-start':
+        set({ agentRunning: true, currentAgentTextId: null })
+        break
+
+      case 'text-delta': {
+        let id = st.currentAgentTextId
+        if (!id) {
+          id = uid()
+          set({
+            currentAgentTextId: id,
+            messages: [...st.messages, { kind: 'agent', id, text: e.text }]
+          })
+        } else {
+          set({
+            messages: st.messages.map((m) =>
+              m.id === id && m.kind === 'agent' ? { ...m, text: m.text + e.text } : m
+            )
+          })
+        }
+        break
+      }
+
+      case 'tool-call':
+        set({
+          currentAgentTextId: null,
+          messages: [
+            ...st.messages,
+            { kind: 'tool', id: e.id, name: e.name, args: e.args, status: 'running' }
+          ]
+        })
+        break
+
+      case 'tool-result':
+        set({
+          messages: st.messages.map((m) =>
+            m.kind === 'tool' && m.id === e.id
+              ? { ...m, status: e.ok ? 'ok' : 'error', summary: e.summary }
+              : m
+          )
+        })
+        break
+
+      case 'edit-proposed':
+        set({
+          pendingEdits: [
+            ...st.pendingEdits,
+            {
+              id: e.id,
+              tool: e.tool,
+              path: e.path,
+              oldContent: e.oldContent,
+              newContent: e.newContent
+            }
+          ]
+        })
+        break
+
+      case 'edit-resolved':
+        set({ pendingEdits: st.pendingEdits.filter((p) => p.id !== e.id) })
+        break
+
+      case 'command-confirm':
+        set({
+          pendingCommands: [
+            ...st.pendingCommands,
+            { id: e.id, command: e.command, reason: e.reason }
+          ]
+        })
+        break
+
+      case 'command-resolved':
+        set({ pendingCommands: st.pendingCommands.filter((p) => p.id !== e.id) })
+        break
+
+      case 'turn-done':
+      case 'cancelled':
+        set({ agentRunning: false, currentAgentTextId: null })
+        if (e.type === 'cancelled') {
+          set((s) => ({
+            messages: [
+              ...s.messages,
+              { kind: 'notice', id: uid(), text: 'Cancelled.', tone: 'info' }
+            ]
+          }))
+        }
+        break
+
+      case 'error':
+        set((s) => ({
+          agentRunning: false,
+          messages: [
+            ...s.messages,
+            { kind: 'notice', id: uid(), text: e.message, tone: 'error' }
+          ]
+        }))
+        break
+    }
+  },
+
+  shiftPendingEdit: () => set((st) => ({ pendingEdits: st.pendingEdits.slice(1) })),
+  shiftPendingCommand: () => set((st) => ({ pendingCommands: st.pendingCommands.slice(1) })),
+
+  toggleSidebar: () => set((st) => ({ sidebarVisible: !st.sidebarVisible })),
+  toggleTerminal: (v) => set((st) => ({ terminalVisible: v ?? !st.terminalVisible })),
+  setSettingsOpen: (v) => set({ settingsOpen: v }),
+  setSidebarWidth: (w) => set({ sidebarWidth: clamp(w, 140, 560) }),
+  setChatWidth: (w) => set({ chatWidth: clamp(w, 280, 720) }),
+  setTerminalHeight: (h) => set({ terminalHeight: clamp(h, 80, 600) })
+}))

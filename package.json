@@ -1,0 +1,45 @@
+{
+  "name": "acyrx",
+  "version": "0.1.0",
+  "description": "Acyrx — an agentic desktop coding assistant powered by Gemini, Claude, and OpenAI",
+  "author": "Acyrx",
+  "license": "MIT",
+  "main": "./out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "start": "electron-vite preview",
+    "build": "npm run typecheck && electron-vite build",
+    "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
+    "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
+    "typecheck": "npm run typecheck:node && npm run typecheck:web",
+    "package": "npm run build && electron-builder",
+    "package:dir": "npm run build && electron-builder --dir"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.104.2",
+    "@google/genai": "^1.0.0",
+    "chokidar": "^3.6.0",
+    "openai": "^6.43.0"
+  },
+  "devDependencies": {
+    "@monaco-editor/react": "^4.6.0",
+    "@types/node": "^20.14.0",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/xterm": "^5.5.0",
+    "autoprefixer": "^10.4.19",
+    "electron": "^31.2.0",
+    "electron-builder": "^24.13.3",
+    "electron-vite": "^2.3.0",
+    "monaco-editor": "^0.50.0",
+    "postcss": "^8.4.39",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tailwindcss": "^3.4.6",
+    "typescript": "^5.5.3",
+    "vite": "^5.3.4",
+    "zustand": "^4.5.4"
+  }
+}
