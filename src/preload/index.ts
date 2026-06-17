@@ -16,7 +16,12 @@ import {
   type InlineEditRequest,
   type GitStatus,
   type GitDiffRequest,
-  type GitCommitRequest
+  type GitCommitRequest,
+  type McpServerConfig,
+  type SessionMeta,
+  type SessionLoadResult,
+  type CompleteCodeRequest,
+  type AttachedImage
 } from '@shared/types'
 
 function subscribe<T>(channel: string, cb: (payload: T) => void): () => void {
@@ -33,6 +38,24 @@ const api: CodexApi = {
     ipcRenderer.invoke(IPC.settingsSetModel, { provider, model }),
   setUserKey: (provider: Provider, key: string): Promise<Settings> =>
     ipcRenderer.invoke(IPC.settingsSetUserKey, { provider, key }),
+  setMcpServers: (servers: McpServerConfig[]): Promise<Settings> =>
+    ipcRenderer.invoke(IPC.settingsSetMcpServers, servers),
+  setTavilyKey: (key: string): Promise<Settings> =>
+    ipcRenderer.invoke(IPC.settingsSetTavilyKey, key),
+  setAutocomplete: (enabled: boolean): Promise<Settings> =>
+    ipcRenderer.invoke(IPC.settingsSetAutocomplete, enabled),
+  mcpReconnect: (): Promise<Settings> => ipcRenderer.invoke(IPC.mcpReconnect),
+
+  sessionsList: (): Promise<SessionMeta[]> => ipcRenderer.invoke(IPC.sessionsList),
+  sessionNew: (): Promise<SessionLoadResult> => ipcRenderer.invoke(IPC.sessionNew),
+  sessionLoad: (id: string): Promise<SessionLoadResult> =>
+    ipcRenderer.invoke(IPC.sessionLoad, id),
+  sessionRename: (id: string, name: string): Promise<SessionMeta[]> =>
+    ipcRenderer.invoke(IPC.sessionRename, { id, name }),
+  sessionDelete: (id: string): Promise<SessionMeta[]> =>
+    ipcRenderer.invoke(IPC.sessionDelete, id),
+  saveTranscript: (transcript: unknown[]): Promise<void> =>
+    ipcRenderer.invoke(IPC.sessionSaveTranscript, transcript),
 
   openFolder: (): Promise<ProjectInfo | null> => ipcRenderer.invoke(IPC.dialogOpenFolder),
   getProject: (): Promise<ProjectInfo | null> => ipcRenderer.invoke(IPC.projectGet),
@@ -42,8 +65,8 @@ const api: CodexApi = {
   saveFile: (req: SaveFileRequest): Promise<{ ok: boolean }> =>
     ipcRenderer.invoke(IPC.fsSaveFile, req),
 
-  sendMessage: (message: string): Promise<void> =>
-    ipcRenderer.invoke(IPC.agentSend, { message }),
+  sendMessage: (message: string, images?: AttachedImage[]): Promise<void> =>
+    ipcRenderer.invoke(IPC.agentSend, { message, images }),
   cancel: (): Promise<void> => ipcRenderer.invoke(IPC.agentCancel),
   resolveEdit: (req: ResolveEditRequest): Promise<void> =>
     ipcRenderer.invoke(IPC.agentResolveEdit, req),
@@ -53,6 +76,8 @@ const api: CodexApi = {
     ipcRenderer.invoke(IPC.agentUndoCheckpoint, id),
   inlineEdit: (req: InlineEditRequest): Promise<void> =>
     ipcRenderer.invoke(IPC.agentInlineEdit, req),
+  completeCode: (req: CompleteCodeRequest): Promise<string> =>
+    ipcRenderer.invoke(IPC.agentCompleteCode, req),
 
   gitStatus: (): Promise<GitStatus> => ipcRenderer.invoke(IPC.gitStatus),
   gitDiff: (req: GitDiffRequest): Promise<string> => ipcRenderer.invoke(IPC.gitDiff, req),

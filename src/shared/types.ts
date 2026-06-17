@@ -52,6 +52,14 @@ export interface Settings {
   models: Record<Provider, string>
   /** Key status per provider (key values never leave main). */
   providers: Record<Provider, ProviderStatus>
+  /** Configured MCP servers. */
+  mcpServers: McpServerConfig[]
+  /** Live MCP connection status. */
+  mcpStatus: McpServerStatus[]
+  /** Whether a Tavily key is set (upgrades web search quality). */
+  hasTavilyKey: boolean
+  /** Inline tab-autocomplete enabled. */
+  autocomplete: boolean
 }
 
 /* ------------------------------------------------------------------ */
@@ -93,6 +101,7 @@ export type ToolName =
   | 'git_status'
   | 'git_diff'
   | 'git_commit'
+  | 'web_search'
 
 export interface ToolCallArgs {
   read_file: { path: string }
@@ -104,6 +113,7 @@ export interface ToolCallArgs {
   git_status: Record<string, never>
   git_diff: { staged?: boolean; path?: string }
   git_commit: { message: string; all?: boolean }
+  web_search: { query: string }
 }
 
 /* ------------------------------------------------------------------ */
@@ -125,13 +135,48 @@ export interface GitStatus {
 }
 
 /* ------------------------------------------------------------------ */
+/* Images, MCP, sessions                                               */
+/* ------------------------------------------------------------------ */
+
+export interface AttachedImage {
+  /** MIME type, e.g. "image/png". */
+  mediaType: string
+  /** Base64-encoded image data (no data: prefix). */
+  data: string
+}
+
+export interface McpServerConfig {
+  id: string
+  name: string
+  command: string
+  args: string[]
+  env?: Record<string, string>
+  enabled: boolean
+}
+
+export interface McpServerStatus {
+  id: string
+  name: string
+  connected: boolean
+  toolCount: number
+  error?: string
+}
+
+export interface SessionMeta {
+  id: string
+  name: string
+  updatedAt: number
+  messageCount: number
+}
+
+/* ------------------------------------------------------------------ */
 /* Agent streaming events (main -> renderer)                           */
 /* ------------------------------------------------------------------ */
 
 export type AgentEvent =
   | { type: 'turn-start' }
   | { type: 'text-delta'; text: string }
-  | { type: 'tool-call'; id: string; name: ToolName; args: Record<string, unknown> }
+  | { type: 'tool-call'; id: string; name: string; args: Record<string, unknown> }
   | { type: 'tool-result'; id: string; ok: boolean; summary: string }
   | {
       type: 'edit-proposed'
@@ -177,6 +222,17 @@ export const IPC = {
   settingsSetProvider: 'settings:setProvider',
   settingsSetModel: 'settings:setModel',
   settingsSetUserKey: 'settings:setUserKey',
+  settingsSetMcpServers: 'settings:setMcpServers',
+  settingsSetTavilyKey: 'settings:setTavilyKey',
+  settingsSetAutocomplete: 'settings:setAutocomplete',
+  mcpReconnect: 'mcp:reconnect',
+  sessionsList: 'sessions:list',
+  sessionNew: 'sessions:new',
+  sessionLoad: 'sessions:load',
+  sessionRename: 'sessions:rename',
+  sessionDelete: 'sessions:delete',
+  sessionSaveTranscript: 'sessions:saveTranscript',
+  agentCompleteCode: 'agent:completeCode',
   dialogOpenFolder: 'dialog:openFolder',
   projectGet: 'project:get',
   fsReadFile: 'fs:readFile',
@@ -219,6 +275,18 @@ export interface SaveFileRequest {
 
 export interface SendMessageRequest {
   message: string
+  images?: AttachedImage[]
+}
+
+export interface CompleteCodeRequest {
+  prefix: string
+  suffix: string
+  language: string
+}
+
+export interface SessionLoadResult {
+  meta: SessionMeta
+  transcript: unknown[]
 }
 
 export interface SetModelRequest {
@@ -271,6 +339,17 @@ export interface CodexApi {
   setProvider(provider: Provider): Promise<Settings>
   setModel(provider: Provider, model: string): Promise<Settings>
   setUserKey(provider: Provider, key: string): Promise<Settings>
+  setMcpServers(servers: McpServerConfig[]): Promise<Settings>
+  setTavilyKey(key: string): Promise<Settings>
+  setAutocomplete(enabled: boolean): Promise<Settings>
+  mcpReconnect(): Promise<Settings>
+  // sessions
+  sessionsList(): Promise<SessionMeta[]>
+  sessionNew(): Promise<SessionLoadResult>
+  sessionLoad(id: string): Promise<SessionLoadResult>
+  sessionRename(id: string, name: string): Promise<SessionMeta[]>
+  sessionDelete(id: string): Promise<SessionMeta[]>
+  saveTranscript(transcript: unknown[]): Promise<void>
   // project / fs
   openFolder(): Promise<ProjectInfo | null>
   getProject(): Promise<ProjectInfo | null>
@@ -279,12 +358,13 @@ export interface CodexApi {
   listFiles(): Promise<string[]>
   saveFile(req: SaveFileRequest): Promise<{ ok: boolean }>
   // agent
-  sendMessage(message: string): Promise<void>
+  sendMessage(message: string, images?: AttachedImage[]): Promise<void>
   cancel(): Promise<void>
   resolveEdit(req: ResolveEditRequest): Promise<void>
   resolveCommand(req: ResolveCommandRequest): Promise<void>
   undoCheckpoint(id: string): Promise<{ restored: number }>
   inlineEdit(req: InlineEditRequest): Promise<void>
+  completeCode(req: CompleteCodeRequest): Promise<string>
   // git
   gitStatus(): Promise<GitStatus>
   gitDiff(req: GitDiffRequest): Promise<string>

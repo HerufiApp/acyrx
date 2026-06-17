@@ -1,5 +1,10 @@
 import { app, BrowserWindow, shell } from 'electron'
 import { join } from 'path'
+import { loadEnv } from './env'
+
+// Load .env before anything reads process.env (keys, builtin keys, etc.).
+loadEnv()
+
 import { registerIpc } from './ipc'
 import { setMainWindow } from './projectState'
 import { stopWatcher } from './watcher'

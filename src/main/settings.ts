@@ -1,7 +1,14 @@
 import { app, safeStorage } from 'electron'
 import { promises as fs } from 'fs'
 import { join } from 'path'
-import type { Settings, Provider, ProviderStatus, KeySource } from '@shared/types'
+import type {
+  Settings,
+  Provider,
+  ProviderStatus,
+  KeySource,
+  McpServerConfig,
+  McpServerStatus
+} from '@shared/types'
 import { DEFAULT_MODELS } from '@shared/types'
 import { oursKey } from './builtinKeys'
 
@@ -19,6 +26,12 @@ interface StoredSettings {
   /** Base64 of the encrypted (or obfuscated) pasted key, per provider. */
   userKeys: Partial<Record<Provider, string>>
   encrypted: boolean
+  /** Configured MCP servers. */
+  mcpServers: McpServerConfig[]
+  /** Base64 of the encrypted (or obfuscated) Tavily key, if set. */
+  tavilyKey?: string
+  /** Inline tab-autocomplete enabled. */
+  autocomplete: boolean
 }
 
 let cache: StoredSettings | null = null
@@ -28,7 +41,14 @@ function settingsPath(): string {
 }
 
 function defaults(): StoredSettings {
-  return { provider: 'gemini', models: { ...DEFAULT_MODELS }, userKeys: {}, encrypted: false }
+  return {
+    provider: 'gemini',
+    models: { ...DEFAULT_MODELS },
+    userKeys: {},
+    encrypted: false,
+    mcpServers: [],
+    autocomplete: true
+  }
 }
 
 async function load(): Promise<StoredSettings> {
@@ -40,7 +60,10 @@ async function load(): Promise<StoredSettings> {
       provider: parsed.provider ?? 'gemini',
       models: { ...DEFAULT_MODELS, ...(parsed.models ?? {}) },
       userKeys: parsed.userKeys ?? {},
-      encrypted: parsed.encrypted ?? false
+      encrypted: parsed.encrypted ?? false,
+      mcpServers: parsed.mcpServers ?? [],
+      tavilyKey: parsed.tavilyKey,
+      autocomplete: parsed.autocomplete ?? true
     }
   } catch {
     cache = defaults()
@@ -78,6 +101,16 @@ function statusFor(s: StoredSettings, provider: Provider): ProviderStatus {
   return { hasUserKey, userFromEnv: !pasted && env, oursAvailable, keySource }
 }
 
+/** Live MCP status is owned by the MCP runtime; until that exists, report none. */
+function mcpStatus(s: StoredSettings): McpServerStatus[] {
+  return s.mcpServers.map((srv) => ({
+    id: srv.id,
+    name: srv.name,
+    connected: false,
+    toolCount: 0
+  }))
+}
+
 export async function getSettings(): Promise<Settings> {
   const s = await load()
   const providers = {} as Record<Provider, ProviderStatus>
@@ -86,7 +119,11 @@ export async function getSettings(): Promise<Settings> {
     provider: s.provider,
     model: s.models[s.provider],
     models: s.models,
-    providers
+    providers,
+    mcpServers: s.mcpServers,
+    mcpStatus: mcpStatus(s),
+    hasTavilyKey: Boolean(s.tavilyKey) || Boolean(process.env.TAVILY_API_KEY?.trim()),
+    autocomplete: s.autocomplete
   }
 }
 
@@ -120,6 +157,40 @@ export async function setUserKey(provider: Provider, key: string): Promise<Setti
   return getSettings()
 }
 
+export async function setMcpServers(servers: McpServerConfig[]): Promise<Settings> {
+  const s = await load()
+  await persist({ ...s, mcpServers: servers })
+  return getSettings()
+}
+
+export async function setTavilyKey(key: string): Promise<Settings> {
+  const s = await load()
+  const trimmed = key.trim()
+  let tavilyKey: string | undefined
+  let encrypted = s.encrypted
+  if (!trimmed) {
+    tavilyKey = undefined
+  } else if (safeStorage.isEncryptionAvailable()) {
+    tavilyKey = safeStorage.encryptString(trimmed).toString('base64')
+    encrypted = true
+  } else {
+    tavilyKey = Buffer.from(trimmed, 'utf-8').toString('base64')
+  }
+  await persist({ ...s, tavilyKey, encrypted })
+  return getSettings()
+}
+
+export async function setAutocomplete(enabled: boolean): Promise<Settings> {
+  const s = await load()
+  await persist({ ...s, autocomplete: enabled })
+  return getSettings()
+}
+
+/** Reconnect MCP servers. No MCP runtime yet, so this just re-reports status. */
+export async function reconnectMcp(): Promise<Settings> {
+  return getSettings()
+}
+
 /* --------- resolution used by the agent loop (main only) --------- */
 
 export async function getActiveProvider(): Promise<Provider> {
@@ -135,4 +206,19 @@ export async function getActiveModel(): Promise<string> {
 export async function getApiKey(provider: Provider): Promise<string | null> {
   const s = await load()
   return decodePasted(s, provider) ?? envKey(provider) ?? oursKey(provider)
+}
+
+/** Resolve the Tavily key: stored -> env. */
+export async function getTavilyKey(): Promise<string | null> {
+  const s = await load()
+  if (s.tavilyKey) {
+    try {
+      const buf = Buffer.from(s.tavilyKey, 'base64')
+      if (s.encrypted && safeStorage.isEncryptionAvailable()) return safeStorage.decryptString(buf)
+      return buf.toString('utf-8')
+    } catch {
+      /* fall through to env */
+    }
+  }
+  return process.env.TAVILY_API_KEY?.trim() || null
 }

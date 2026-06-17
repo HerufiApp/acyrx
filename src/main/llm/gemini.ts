@@ -31,8 +31,8 @@ const TYPE_MAP: Record<string, Type> = {
 
 function toDeclaration(spec: ToolSpec): FunctionDeclaration {
   const properties: Record<string, Schema> = {}
-  for (const [key, prop] of Object.entries(spec.parameters.properties)) {
-    properties[key] = { type: TYPE_MAP[prop.type] ?? Type.STRING, description: prop.description }
+  for (const [key, prop] of Object.entries(spec.parameters.properties ?? {})) {
+    properties[key] = { type: TYPE_MAP[prop.type ?? ''] ?? Type.STRING, description: prop.description }
   }
   return {
     name: spec.name,

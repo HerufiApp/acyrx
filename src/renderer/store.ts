@@ -1,11 +1,5 @@
 import { create } from 'zustand'
-import type {
-  Settings,
-  ProjectInfo,
-  DirEntry,
-  AgentEvent,
-  ToolName
-} from '@shared/types'
+import type { Settings, ProjectInfo, DirEntry, AgentEvent } from '@shared/types'
 
 /* ---------------- chat model ---------------- */
 
@@ -15,7 +9,7 @@ export type ChatItem =
   | {
       kind: 'tool'
       id: string
-      name: ToolName
+      name: string
       args: Record<string, unknown>
       status: 'running' | 'ok' | 'error'
       summary?: string

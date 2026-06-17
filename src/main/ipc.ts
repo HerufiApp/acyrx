@@ -16,9 +16,21 @@ import {
   type GitStatus,
   type GitDiffRequest,
   type GitCommitRequest,
-  type InlineEditRequest
+  type InlineEditRequest,
+  type McpServerConfig,
+  type CompleteCodeRequest
 } from '@shared/types'
-import { getSettings, setProvider, setModel, setUserKey } from './settings'
+import {
+  getSettings,
+  setProvider,
+  setModel,
+  setUserKey,
+  setMcpServers,
+  setTavilyKey,
+  setAutocomplete,
+  reconnectMcp
+} from './settings'
+import * as sessions from './sessions'
 import { getProject, setProject, getProjectRoot, emitProjectChanged } from './projectState'
 import { resolveInProject, toRelative } from './tools/paths'
 import { startWatcher } from './watcher'
@@ -70,6 +82,24 @@ export function registerIpc(): void {
   ipcMain.handle(IPC.settingsSetModel, (_e, req: SetModelRequest) => setModel(req.provider, req.model))
   ipcMain.handle(IPC.settingsSetUserKey, (_e, req: SetUserKeyRequest) =>
     setUserKey(req.provider, req.key)
+  )
+  ipcMain.handle(IPC.settingsSetMcpServers, (_e, servers: McpServerConfig[]) =>
+    setMcpServers(servers)
+  )
+  ipcMain.handle(IPC.settingsSetTavilyKey, (_e, key: string) => setTavilyKey(key))
+  ipcMain.handle(IPC.settingsSetAutocomplete, (_e, enabled: boolean) => setAutocomplete(enabled))
+  ipcMain.handle(IPC.mcpReconnect, () => reconnectMcp())
+
+  /* ---------------- sessions ---------------- */
+  ipcMain.handle(IPC.sessionsList, () => sessions.list())
+  ipcMain.handle(IPC.sessionNew, () => sessions.create())
+  ipcMain.handle(IPC.sessionLoad, (_e, id: string) => sessions.load(id))
+  ipcMain.handle(IPC.sessionRename, (_e, req: { id: string; name: string }) =>
+    sessions.rename(req.id, req.name)
+  )
+  ipcMain.handle(IPC.sessionDelete, (_e, id: string) => sessions.remove(id))
+  ipcMain.handle(IPC.sessionSaveTranscript, (_e, transcript: unknown[]) =>
+    sessions.saveTranscript(transcript)
   )
 
   /* ---------------- project / dialog ---------------- */
@@ -134,6 +164,19 @@ export function registerIpc(): void {
     resolveApproval(req.id, req.accept)
   })
   ipcMain.handle(IPC.agentUndoCheckpoint, (_e, id: string) => undoCheckpoint(id))
+
+  ipcMain.handle(IPC.agentCompleteCode, async (_e, req: CompleteCodeRequest): Promise<string> => {
+    const system =
+      'You are an inline code-completion engine. Continue the code at the cursor. ' +
+      'Output ONLY the text to insert at the cursor — no explanation, no markdown fences. ' +
+      'Keep it short (at most a few lines).'
+    const user =
+      `Language: ${req.language}\n` +
+      `Complete the code between <prefix> and <suffix>.\n` +
+      `<prefix>${req.prefix}</prefix>\n` +
+      `<suffix>${req.suffix}</suffix>`
+    return stripFences(await completeOnce(system, user))
+  })
 
   ipcMain.handle(IPC.agentInlineEdit, async (_e, req: InlineEditRequest): Promise<void> => {
     const selected = req.fullText.slice(req.start, req.end)
