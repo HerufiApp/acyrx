@@ -29,7 +29,12 @@ import {
   type AttachedImage,
   type AuthState,
   type AuthResult,
-  type AuthCredentials
+  type AuthCredentials,
+  type TerminalCreateRequest,
+  type TerminalInput,
+  type TerminalResize,
+  type PtyData,
+  type PtyExit
 } from '@shared/types'
 
 function subscribe<T>(channel: string, cb: (payload: T) => void): () => void {
@@ -120,9 +125,17 @@ const api: CodexApi = {
   githubCreateRepo: (req: CreateRepoRequest): Promise<GitOpResult> =>
     ipcRenderer.invoke(IPC.githubCreateRepo, req),
 
+  terminalCreate: (req: TerminalCreateRequest): Promise<void> =>
+    ipcRenderer.invoke(IPC.terminalCreate, req),
+  terminalInput: (input: TerminalInput): void => ipcRenderer.send(IPC.terminalInput, input),
+  terminalResize: (resize: TerminalResize): void => ipcRenderer.send(IPC.terminalResize, resize),
+  terminalKill: (id: string): void => ipcRenderer.send(IPC.terminalKill, id),
+
   onAgentEvent: (cb: (e: AgentEvent) => void) => subscribe(IPC.evtAgent, cb),
   onFsChange: (cb: (c: FsChange) => void) => subscribe(IPC.evtFsChange, cb),
   onTerminalData: (cb: (d: TerminalData) => void) => subscribe(IPC.evtTerminal, cb),
+  onPtyData: (cb: (d: PtyData) => void) => subscribe(IPC.evtPtyData, cb),
+  onPtyExit: (cb: (e: PtyExit) => void) => subscribe(IPC.evtPtyExit, cb),
   onProjectChanged: (cb: (p: ProjectInfo | null) => void) =>
     subscribe(IPC.evtProjectChanged, cb)
 }

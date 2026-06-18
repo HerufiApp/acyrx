@@ -284,6 +284,41 @@ export interface TerminalData {
 }
 
 /* ------------------------------------------------------------------ */
+/* Interactive PTY terminals (multiple, VS Code-style)                 */
+/* ------------------------------------------------------------------ */
+
+export interface TerminalCreateRequest {
+  /** Renderer-generated id that ties together input/output/resize/kill. */
+  id: string
+  cols: number
+  rows: number
+}
+
+export interface TerminalInput {
+  id: string
+  /** Keystrokes/text typed by the user, forwarded to the shell stdin. */
+  data: string
+}
+
+export interface TerminalResize {
+  id: string
+  cols: number
+  rows: number
+}
+
+/** A chunk of shell output for a specific interactive terminal. */
+export interface PtyData {
+  id: string
+  data: string
+}
+
+/** Emitted when an interactive terminal's shell process exits. */
+export interface PtyExit {
+  id: string
+  exitCode: number
+}
+
+/* ------------------------------------------------------------------ */
 /* IPC channel names                                                   */
 /* ------------------------------------------------------------------ */
 
@@ -338,10 +373,17 @@ export const IPC = {
   gitSetRemote: 'git:setRemote',
   githubCreateRepo: 'github:createRepo',
   settingsSetGithubToken: 'settings:setGithubToken',
+  // interactive terminals
+  terminalCreate: 'terminal:create',
+  terminalInput: 'terminal:input',
+  terminalResize: 'terminal:resize',
+  terminalKill: 'terminal:kill',
   // send (main -> renderer, streaming)
   evtAgent: 'evt:agent',
   evtFsChange: 'evt:fsChange',
   evtTerminal: 'evt:terminal',
+  evtPtyData: 'evt:pty:data',
+  evtPtyExit: 'evt:pty:exit',
   evtProjectChanged: 'evt:projectChanged',
   evtAuthChanged: 'evt:authChanged'
 } as const
@@ -477,9 +519,16 @@ export interface CodexApi {
   gitCreateBranch(name: string): Promise<GitOpResult>
   gitSetRemote(url: string): Promise<GitOpResult>
   githubCreateRepo(req: CreateRepoRequest): Promise<GitOpResult>
+  // interactive terminals
+  terminalCreate(req: TerminalCreateRequest): Promise<void>
+  terminalInput(input: TerminalInput): void
+  terminalResize(resize: TerminalResize): void
+  terminalKill(id: string): void
   // subscriptions (return an unsubscribe fn)
   onAgentEvent(cb: (e: AgentEvent) => void): () => void
   onFsChange(cb: (c: FsChange) => void): () => void
   onTerminalData(cb: (d: TerminalData) => void): () => void
+  onPtyData(cb: (d: PtyData) => void): () => void
+  onPtyExit(cb: (e: PtyExit) => void): () => void
   onProjectChanged(cb: (p: ProjectInfo | null) => void): () => void
 }

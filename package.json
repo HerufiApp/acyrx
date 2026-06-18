@@ -21,10 +21,12 @@
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@supabase/supabase-js": "^2.108.2",
     "chokidar": "^3.6.0",
+    "node-pty": "^1.1.0",
     "openai": "^6.43.0",
     "ws": "^8.18.0"
   },
   "devDependencies": {
+    "@electron/rebuild": "^3.7.2",
     "@monaco-editor/react": "^4.6.0",
     "@types/node": "^20.14.0",
     "@types/react": "^18.3.3",

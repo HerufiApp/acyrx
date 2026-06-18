@@ -24,7 +24,10 @@ import {
   type InlineEditRequest,
   type McpServerConfig,
   type CompleteCodeRequest,
-  type AuthCredentials
+  type AuthCredentials,
+  type TerminalCreateRequest,
+  type TerminalInput,
+  type TerminalResize
 } from '@shared/types'
 import * as auth from './auth'
 import {
@@ -48,6 +51,7 @@ import { resolveApproval } from './agent/approvals'
 import { undoCheckpoint } from './checkpoint'
 import { proposeEdit } from './edits'
 import { completeOnce } from './agent/complete'
+import { createTerminal, writeTerminal, resizeTerminal, killTerminal } from './terminals'
 import * as git from './git'
 
 const EXPLORER_IGNORE = new Set(['.git', '.DS_Store'])
@@ -188,6 +192,20 @@ export function registerIpc(): void {
     resolveApproval(req.id, req.accept)
   })
   ipcMain.handle(IPC.agentUndoCheckpoint, (_e, id: string) => undoCheckpoint(id))
+
+  /* ---------------- interactive terminals ---------------- */
+  ipcMain.handle(IPC.terminalCreate, (_e, req: TerminalCreateRequest): void => {
+    createTerminal(req.id, req.cols, req.rows)
+  })
+  ipcMain.on(IPC.terminalInput, (_e, req: TerminalInput): void => {
+    writeTerminal(req.id, req.data)
+  })
+  ipcMain.on(IPC.terminalResize, (_e, req: TerminalResize): void => {
+    resizeTerminal(req.id, req.cols, req.rows)
+  })
+  ipcMain.on(IPC.terminalKill, (_e, id: string): void => {
+    killTerminal(id)
+  })
 
   ipcMain.handle(IPC.agentCompleteCode, async (_e, req: CompleteCodeRequest): Promise<string> => {
     auth.requireAuth()

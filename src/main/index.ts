@@ -8,6 +8,7 @@ loadEnv()
 import { registerIpc } from './ipc'
 import { setMainWindow } from './projectState'
 import { stopWatcher } from './watcher'
+import { killAllTerminals } from './terminals'
 import { restoreSession } from './auth'
 
 function createWindow(): BrowserWindow {
@@ -59,5 +60,10 @@ app.whenReady().then(async () => {
 
 app.on('window-all-closed', () => {
   stopWatcher()
+  killAllTerminals()
   if (process.platform !== 'darwin') app.quit()
+})
+
+app.on('before-quit', () => {
+  killAllTerminals()
 })
