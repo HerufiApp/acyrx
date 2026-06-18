@@ -8,6 +8,7 @@ loadEnv()
 import { registerIpc } from './ipc'
 import { setMainWindow } from './projectState'
 import { stopWatcher } from './watcher'
+import { restoreSession } from './auth'
 
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -44,8 +45,11 @@ function createWindow(): BrowserWindow {
   return win
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   registerIpc()
+  // Restore a persisted Supabase session before the window queries auth state,
+  // so a returning user isn't briefly shown the sign-in screen.
+  await restoreSession()
   createWindow()
 
   app.on('activate', () => {

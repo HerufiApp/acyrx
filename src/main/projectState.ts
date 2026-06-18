@@ -14,6 +14,10 @@ export function setMainWindow(w: BrowserWindow): void {
   mainWindow = w
 }
 
+export function getMainWindow(): BrowserWindow | null {
+  return mainWindow
+}
+
 export function getProject(): ProjectInfo | null {
   return project
 }

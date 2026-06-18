@@ -17,11 +17,19 @@ import {
   type GitStatus,
   type GitDiffRequest,
   type GitCommitRequest,
+  type GitBranches,
+  type GitOpResult,
+  type GitCloneRequest,
+  type GitCloneResult,
+  type CreateRepoRequest,
   type McpServerConfig,
   type SessionMeta,
   type SessionLoadResult,
   type CompleteCodeRequest,
-  type AttachedImage
+  type AttachedImage,
+  type AuthState,
+  type AuthResult,
+  type AuthCredentials
 } from '@shared/types'
 
 function subscribe<T>(channel: string, cb: (payload: T) => void): () => void {
@@ -31,6 +39,14 @@ function subscribe<T>(channel: string, cb: (payload: T) => void): () => void {
 }
 
 const api: CodexApi = {
+  getAuth: (): Promise<AuthState> => ipcRenderer.invoke(IPC.authGet),
+  authSignIn: (creds: AuthCredentials): Promise<AuthResult> =>
+    ipcRenderer.invoke(IPC.authSignIn, creds),
+  authSignUp: (creds: AuthCredentials): Promise<AuthResult> =>
+    ipcRenderer.invoke(IPC.authSignUp, creds),
+  authSignOut: (): Promise<AuthState> => ipcRenderer.invoke(IPC.authSignOut),
+  onAuthChanged: (cb: (s: AuthState) => void) => subscribe(IPC.evtAuthChanged, cb),
+
   getSettings: (): Promise<Settings> => ipcRenderer.invoke(IPC.settingsGet),
   setProvider: (provider: Provider): Promise<Settings> =>
     ipcRenderer.invoke(IPC.settingsSetProvider, provider),
@@ -42,6 +58,8 @@ const api: CodexApi = {
     ipcRenderer.invoke(IPC.settingsSetMcpServers, servers),
   setTavilyKey: (key: string): Promise<Settings> =>
     ipcRenderer.invoke(IPC.settingsSetTavilyKey, key),
+  setGithubToken: (token: string): Promise<Settings> =>
+    ipcRenderer.invoke(IPC.settingsSetGithubToken, token),
   setAutocomplete: (enabled: boolean): Promise<Settings> =>
     ipcRenderer.invoke(IPC.settingsSetAutocomplete, enabled),
   mcpReconnect: (): Promise<Settings> => ipcRenderer.invoke(IPC.mcpReconnect),
@@ -87,6 +105,20 @@ const api: CodexApi = {
     ipcRenderer.invoke(IPC.gitCommit, req),
   gitGenerateMessage: (): Promise<string> => ipcRenderer.invoke(IPC.gitGenerateMessage),
   gitExplain: (): Promise<string> => ipcRenderer.invoke(IPC.gitExplain),
+  gitPush: (): Promise<GitOpResult> => ipcRenderer.invoke(IPC.gitPush),
+  gitPull: (): Promise<GitOpResult> => ipcRenderer.invoke(IPC.gitPull),
+  gitFetch: (): Promise<GitOpResult> => ipcRenderer.invoke(IPC.gitFetch),
+  gitClone: (req: GitCloneRequest): Promise<GitCloneResult> =>
+    ipcRenderer.invoke(IPC.gitClone, req),
+  gitInit: (): Promise<GitOpResult> => ipcRenderer.invoke(IPC.gitInit),
+  gitBranches: (): Promise<GitBranches> => ipcRenderer.invoke(IPC.gitBranches),
+  gitCheckout: (branch: string): Promise<GitOpResult> =>
+    ipcRenderer.invoke(IPC.gitCheckout, branch),
+  gitCreateBranch: (name: string): Promise<GitOpResult> =>
+    ipcRenderer.invoke(IPC.gitCreateBranch, name),
+  gitSetRemote: (url: string): Promise<GitOpResult> => ipcRenderer.invoke(IPC.gitSetRemote, url),
+  githubCreateRepo: (req: CreateRepoRequest): Promise<GitOpResult> =>
+    ipcRenderer.invoke(IPC.githubCreateRepo, req),
 
   onAgentEvent: (cb: (e: AgentEvent) => void) => subscribe(IPC.evtAgent, cb),
   onFsChange: (cb: (c: FsChange) => void) => subscribe(IPC.evtFsChange, cb),

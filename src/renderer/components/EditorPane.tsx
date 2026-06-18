@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import Editor from '@monaco-editor/react'
 import { useStore } from '../store'
 import DiffView from './DiffView'
+import logoUrl from '../assets/acyrx2.webp'
 
 const EXT_LANG: Record<string, string> = {
   ts: 'typescript',
@@ -165,8 +166,21 @@ export default function EditorPane(): JSX.Element {
             }}
           />
         ) : (
-          <div className="flex h-full items-center justify-center text-sm opacity-40">
-            Select a file to start editing — press ⌘/Ctrl+K on a selection for inline edit
+          <div className="flex h-full select-none flex-col items-center justify-center gap-7 bg-bg">
+            <img
+              src={logoUrl}
+              alt="Acyrx"
+              draggable={false}
+              width={128}
+              height={128}
+              className="h-32 w-32 opacity-90 [filter:drop-shadow(0_10px_30px_rgba(168,85,247,0.55))_drop-shadow(0_2px_8px_rgba(0,0,0,0.6))]"
+            />
+            <div className="text-center">
+              <div className="text-base font-semibold tracking-tight text-txt-dim">Acyrx</div>
+              <div className="mt-1 text-xs text-txt-faint">
+                Select a file to start editing — press ⌘/Ctrl+K on a selection for inline edit
+              </div>
+            </div>
           </div>
         )}
       </div>

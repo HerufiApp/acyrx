@@ -58,8 +58,39 @@ export interface Settings {
   mcpStatus: McpServerStatus[]
   /** Whether a Tavily key is set (upgrades web search quality). */
   hasTavilyKey: boolean
+  /** Whether a GitHub token is set (enables push/pull/clone of private repos). */
+  hasGithubToken: boolean
   /** Inline tab-autocomplete enabled. */
   autocomplete: boolean
+}
+
+/* ------------------------------------------------------------------ */
+/* Authentication (Supabase)                                           */
+/* ------------------------------------------------------------------ */
+
+export interface AuthUser {
+  id: string
+  email: string | null
+}
+
+export interface AuthState {
+  /** Whether Supabase auth is configured (SUPABASE_URL + SUPABASE_ANON_KEY). */
+  configured: boolean
+  /** The signed-in user, or null when signed out. */
+  user: AuthUser | null
+}
+
+export interface AuthResult {
+  ok: boolean
+  /** Present on success. */
+  state?: AuthState
+  /** Present on failure — a human-readable reason. */
+  error?: string
+}
+
+export interface AuthCredentials {
+  email: string
+  password: string
 }
 
 /* ------------------------------------------------------------------ */
@@ -132,6 +163,46 @@ export interface GitStatus {
   isRepo: boolean
   branch: string
   changes: GitFileChange[]
+  /** Commits ahead of the upstream branch. */
+  ahead: number
+  /** Commits behind the upstream branch. */
+  behind: number
+  /** True when the current branch has a configured upstream. */
+  hasUpstream: boolean
+  /** origin remote URL, if any. */
+  remoteUrl: string | null
+}
+
+export interface GitBranches {
+  current: string
+  local: string[]
+  remote: string[]
+}
+
+export interface GitOpResult {
+  ok: boolean
+  output: string
+}
+
+export interface GitCloneRequest {
+  url: string
+  /** Optional explicit parent directory; if omitted a folder picker is shown. */
+  parentDir?: string
+}
+
+export interface GitCloneResult {
+  ok: boolean
+  output: string
+  /** The opened project, when the clone succeeded. */
+  project: ProjectInfo | null
+}
+
+export interface CreateRepoRequest {
+  name: string
+  description?: string
+  private: boolean
+  /** Push the current project to the new repo after creating it. */
+  push: boolean
 }
 
 /* ------------------------------------------------------------------ */
@@ -218,6 +289,10 @@ export interface TerminalData {
 
 export const IPC = {
   // invoke (renderer -> main, request/response)
+  authGet: 'auth:get',
+  authSignIn: 'auth:signIn',
+  authSignUp: 'auth:signUp',
+  authSignOut: 'auth:signOut',
   settingsGet: 'settings:get',
   settingsSetProvider: 'settings:setProvider',
   settingsSetModel: 'settings:setModel',
@@ -252,11 +327,23 @@ export const IPC = {
   gitCommit: 'git:commit',
   gitGenerateMessage: 'git:generateMessage',
   gitExplain: 'git:explain',
+  gitPush: 'git:push',
+  gitPull: 'git:pull',
+  gitFetch: 'git:fetch',
+  gitClone: 'git:clone',
+  gitInit: 'git:init',
+  gitBranches: 'git:branches',
+  gitCheckout: 'git:checkout',
+  gitCreateBranch: 'git:createBranch',
+  gitSetRemote: 'git:setRemote',
+  githubCreateRepo: 'github:createRepo',
+  settingsSetGithubToken: 'settings:setGithubToken',
   // send (main -> renderer, streaming)
   evtAgent: 'evt:agent',
   evtFsChange: 'evt:fsChange',
   evtTerminal: 'evt:terminal',
-  evtProjectChanged: 'evt:projectChanged'
+  evtProjectChanged: 'evt:projectChanged',
+  evtAuthChanged: 'evt:authChanged'
 } as const
 
 /* ------------------------------------------------------------------ */
@@ -334,6 +421,12 @@ export interface GitCommitRequest {
 /* ------------------------------------------------------------------ */
 
 export interface CodexApi {
+  // auth
+  getAuth(): Promise<AuthState>
+  authSignIn(creds: AuthCredentials): Promise<AuthResult>
+  authSignUp(creds: AuthCredentials): Promise<AuthResult>
+  authSignOut(): Promise<AuthState>
+  onAuthChanged(cb: (s: AuthState) => void): () => void
   // settings
   getSettings(): Promise<Settings>
   setProvider(provider: Provider): Promise<Settings>
@@ -341,6 +434,7 @@ export interface CodexApi {
   setUserKey(provider: Provider, key: string): Promise<Settings>
   setMcpServers(servers: McpServerConfig[]): Promise<Settings>
   setTavilyKey(key: string): Promise<Settings>
+  setGithubToken(token: string): Promise<Settings>
   setAutocomplete(enabled: boolean): Promise<Settings>
   mcpReconnect(): Promise<Settings>
   // sessions
@@ -373,6 +467,16 @@ export interface CodexApi {
   gitCommit(req: GitCommitRequest): Promise<{ ok: boolean; output: string }>
   gitGenerateMessage(): Promise<string>
   gitExplain(): Promise<string>
+  gitPush(): Promise<GitOpResult>
+  gitPull(): Promise<GitOpResult>
+  gitFetch(): Promise<GitOpResult>
+  gitClone(req: GitCloneRequest): Promise<GitCloneResult>
+  gitInit(): Promise<GitOpResult>
+  gitBranches(): Promise<GitBranches>
+  gitCheckout(branch: string): Promise<GitOpResult>
+  gitCreateBranch(name: string): Promise<GitOpResult>
+  gitSetRemote(url: string): Promise<GitOpResult>
+  githubCreateRepo(req: CreateRepoRequest): Promise<GitOpResult>
   // subscriptions (return an unsubscribe fn)
   onAgentEvent(cb: (e: AgentEvent) => void): () => void
   onFsChange(cb: (c: FsChange) => void): () => void

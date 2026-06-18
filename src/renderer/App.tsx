@@ -5,7 +5,10 @@ import Sidebar from './components/Sidebar'
 import EditorPane from './components/EditorPane'
 import ChatPanel from './components/ChatPanel'
 import TerminalPanel from './components/TerminalPanel'
-import SettingsModal from './components/SettingsModal'
+import SettingsPage from './components/SettingsPage'
+import AuthGate from './components/AuthGate'
+import CloneModal from './components/CloneModal'
+import PublishModal from './components/PublishModal'
 import DiffViewerModal from './components/DiffViewerModal'
 import ResizeHandle from './components/ResizeHandle'
 
@@ -14,6 +17,10 @@ export default function App(): JSX.Element {
     sidebarVisible,
     terminalVisible,
     settingsOpen,
+    cloneOpen,
+    publishOpen,
+    auth,
+    setAuth,
     setSettings,
     setProject,
     applyAgentEvent,
@@ -23,20 +30,23 @@ export default function App(): JSX.Element {
     sidebarWidth,
     chatWidth,
     terminalHeight,
-    setSidebarWidth,
-    setChatWidth,
-    setTerminalHeight
+    nudgeSidebarWidth,
+    nudgeChatWidth,
+    nudgeTerminalHeight
   } = useStore()
 
-  // Bootstrap settings + project, subscribe to agent events.
+  // Bootstrap auth + settings + project, subscribe to agent events.
   useEffect(() => {
+    void window.codex.getAuth().then(setAuth)
     void window.codex.getSettings().then(setSettings)
     void window.codex.getProject().then(setProject)
     const offAgent = window.codex.onAgentEvent(applyAgentEvent)
     const offProject = window.codex.onProjectChanged(setProject)
+    const offAuth = window.codex.onAuthChanged(setAuth)
     return () => {
       offAgent()
       offProject()
+      offAuth()
     }
   }, [])
 
@@ -60,6 +70,9 @@ export default function App(): JSX.Element {
         e.preventDefault()
         const edit = useStore.getState().pendingEdits[0]
         void window.codex.resolveEdit({ id: edit.id, accept: true })
+      } else if (e.key === 'Escape' && useStore.getState().settingsOpen) {
+        e.preventDefault()
+        setSettingsOpen(false)
       } else if (e.key === 'Escape' && useStore.getState().pendingEdits.length > 0) {
         e.preventDefault()
         const edit = useStore.getState().pendingEdits[0]
@@ -73,13 +86,14 @@ export default function App(): JSX.Element {
   return (
     <div className="flex h-full w-full flex-col bg-bg text-[#d4d4d4]">
       <Toolbar />
-      <div className="flex min-h-0 flex-1">
+      <div className="relative flex min-h-0 flex-1">
+        {settingsOpen && <SettingsPage />}
         {sidebarVisible && (
           <>
             <div className="shrink-0 bg-bg-alt" style={{ width: sidebarWidth }}>
               <Sidebar />
             </div>
-            <ResizeHandle orientation="vertical" onResize={(d) => setSidebarWidth(sidebarWidth + d)} />
+            <ResizeHandle orientation="vertical" onResize={nudgeSidebarWidth} />
           </>
         )}
         <div className="flex min-w-0 flex-1 flex-col">
@@ -90,7 +104,7 @@ export default function App(): JSX.Element {
             <>
               <ResizeHandle
                 orientation="horizontal"
-                onResize={(d) => setTerminalHeight(terminalHeight - d)}
+                onResize={(d) => nudgeTerminalHeight(-d)}
               />
               <div className="shrink-0" style={{ height: terminalHeight }}>
                 <TerminalPanel />
@@ -98,13 +112,15 @@ export default function App(): JSX.Element {
             </>
           )}
         </div>
-        <ResizeHandle orientation="vertical" onResize={(d) => setChatWidth(chatWidth - d)} />
+        <ResizeHandle orientation="vertical" onResize={(d) => nudgeChatWidth(-d)} />
         <div className="flex shrink-0 flex-col bg-bg-alt" style={{ width: chatWidth }}>
           <ChatPanel />
         </div>
       </div>
-      {settingsOpen && <SettingsModal />}
+      {cloneOpen && <CloneModal />}
+      {publishOpen && <PublishModal />}
       <DiffViewerModal />
+      {auth?.configured && !auth.user && <AuthGate />}
     </div>
   )
 }

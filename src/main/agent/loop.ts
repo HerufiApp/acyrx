@@ -4,6 +4,7 @@ import { getProvider, toolSpecs, type AgentMessage, type ToolResult } from '../l
 import { runTool, type ToolContext } from '../tools'
 import { emitAgent, getProject, getProjectRoot } from '../projectState'
 import { getApiKey, getActiveProvider, getActiveModel } from '../settings'
+import { isAuthenticated } from '../auth'
 import { rejectAllApprovals } from './approvals'
 import { startCheckpoint, finalizeCheckpoint } from '../checkpoint'
 import { resolveMentions } from '../mentions'
@@ -68,6 +69,10 @@ async function buildSystemInstruction(): Promise<string> {
 }
 
 export async function sendMessage(message: string): Promise<void> {
+  if (!isAuthenticated()) {
+    emitAgent({ type: 'error', message: 'You must sign in to use the AI features.' })
+    return
+  }
   if (running) {
     emitAgent({ type: 'error', message: 'The agent is already working. Cancel it first.' })
     return

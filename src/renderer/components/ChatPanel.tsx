@@ -102,10 +102,13 @@ export default function ChatPanel(): JSX.Element {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex h-9 shrink-0 items-center justify-between border-b border-border px-3 text-[11px]">
-        <span className="font-semibold uppercase tracking-wide opacity-60">Chat</span>
+      <div className="flex h-10 shrink-0 items-center justify-between border-b border-border px-3 text-[11px]">
+        <span className="flex items-center gap-2 font-medium tracking-wide text-txt-dim">
+          <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+          Chat
+        </span>
         {(usage.inputTokens > 0 || usage.outputTokens > 0) && (
-          <span className="opacity-50" title="Session token usage (estimated cost)">
+          <span className="font-mono text-txt-faint" title="Session token usage (estimated cost)">
             ▲{usage.inputTokens} ▼{usage.outputTokens} {cost}
           </span>
         )}
@@ -113,9 +116,14 @@ export default function ChatPanel(): JSX.Element {
 
       <div ref={scrollRef} className="min-h-0 flex-1 space-y-3 overflow-auto p-3">
         {messages.length === 0 && (
-          <div className="text-xs opacity-40">
-            Ask the agent to build, edit, or explain code. Type <code>@</code> to attach files or
-            folders to the context.
+          <div className="mt-6 flex flex-col items-center gap-2 text-center text-txt-faint">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-bg-panel text-base">
+              ✦
+            </span>
+            <p className="max-w-[220px] text-xs leading-relaxed">
+              Ask Acyrx to build, edit, or explain code. Type <code className="text-accent">@</code>{' '}
+              to attach files or folders to the context.
+            </p>
           </div>
         )}
         {messages.map((m) =>
@@ -156,9 +164,9 @@ export default function ChatPanel(): JSX.Element {
         </div>
       ))}
 
-      <div className="relative shrink-0 border-t border-border p-2">
+      <div className="relative shrink-0 p-3">
         {mention && matches.length > 0 && (
-          <div className="absolute bottom-full left-2 right-2 mb-1 max-h-56 overflow-auto rounded border border-border bg-bg-alt shadow-lg">
+          <div className="absolute bottom-full left-3 right-3 mb-2 max-h-56 overflow-auto rounded-lg border border-border bg-bg-elevated p-1 shadow-pop">
             {matches.map((f, i) => (
               <div
                 key={f}
@@ -166,8 +174,8 @@ export default function ChatPanel(): JSX.Element {
                   e.preventDefault()
                   acceptMention(f)
                 }}
-                className={`cursor-pointer truncate px-2 py-1 font-mono text-[12px] ${
-                  i === mention.index ? 'bg-accent text-white' : 'hover:bg-bg-hover'
+                className={`cursor-pointer truncate rounded-md px-2 py-1 font-mono text-[12px] ${
+                  i === mention.index ? 'bg-accent text-white' : 'text-txt-dim hover:bg-bg-hover'
                 }`}
               >
                 {f}
@@ -175,37 +183,44 @@ export default function ChatPanel(): JSX.Element {
             ))}
           </div>
         )}
-        <textarea
-          ref={taRef}
-          value={input}
-          onChange={onChange}
-          onKeyDown={onKeyDown}
-          rows={3}
-          placeholder={
-            project
-              ? 'Ask Acyrx… (Enter to send, Shift+Enter newline, @ to attach files)'
-              : 'Open a folder first…'
-          }
-          className="w-full resize-none rounded border border-border bg-bg p-2 text-[13px] text-[#d4d4d4] outline-none focus:border-accent"
-        />
-        <div className="mt-1 flex items-center justify-between">
-          <span className="text-[11px] opacity-40">{agentRunning ? 'Agent is working…' : ''}</span>
-          {agentRunning ? (
-            <button
-              onClick={() => window.codex.cancel()}
-              className="rounded bg-red-800 px-3 py-1 text-xs text-white hover:bg-red-700"
-            >
-              Stop
-            </button>
-          ) : (
-            <button
-              onClick={send}
-              disabled={!input.trim()}
-              className="rounded bg-accent px-4 py-1 text-xs text-white hover:bg-accent-hover disabled:opacity-40"
-            >
-              Send
-            </button>
-          )}
+        <div className="focus-accent rounded-xl border border-border bg-bg-panel p-2 transition-shadow">
+          <textarea
+            ref={taRef}
+            value={input}
+            onChange={onChange}
+            onKeyDown={onKeyDown}
+            rows={3}
+            placeholder={
+              project
+                ? 'Ask Acyrx anything…  @ to attach files'
+                : 'Open a folder first…'
+            }
+            className="w-full resize-none bg-transparent px-1 text-[13px] leading-relaxed text-txt outline-none placeholder:text-txt-faint"
+          />
+          <div className="mt-1 flex items-center justify-between px-1">
+            <span className="flex items-center gap-1.5 text-[11px] text-txt-faint">
+              {agentRunning && (
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
+              )}
+              {agentRunning ? 'Agent is working…' : 'Enter to send · Shift+Enter for newline'}
+            </span>
+            {agentRunning ? (
+              <button
+                onClick={() => window.codex.cancel()}
+                className="rounded-lg bg-red-500/90 px-3 py-1 text-xs font-medium text-white hover:bg-red-500"
+              >
+                Stop
+              </button>
+            ) : (
+              <button
+                onClick={send}
+                disabled={!input.trim()}
+                className="rounded-lg bg-accent px-4 py-1 text-xs font-medium text-white shadow-sm transition-colors hover:bg-accent-hover disabled:opacity-30"
+              >
+                Send
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

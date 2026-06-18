@@ -30,6 +30,8 @@ interface StoredSettings {
   mcpServers: McpServerConfig[]
   /** Base64 of the encrypted (or obfuscated) Tavily key, if set. */
   tavilyKey?: string
+  /** Base64 of the encrypted (or obfuscated) GitHub token, if set. */
+  githubToken?: string
   /** Inline tab-autocomplete enabled. */
   autocomplete: boolean
 }
@@ -63,6 +65,7 @@ async function load(): Promise<StoredSettings> {
       encrypted: parsed.encrypted ?? false,
       mcpServers: parsed.mcpServers ?? [],
       tavilyKey: parsed.tavilyKey,
+      githubToken: parsed.githubToken,
       autocomplete: parsed.autocomplete ?? true
     }
   } catch {
@@ -123,8 +126,13 @@ export async function getSettings(): Promise<Settings> {
     mcpServers: s.mcpServers,
     mcpStatus: mcpStatus(s),
     hasTavilyKey: Boolean(s.tavilyKey) || Boolean(process.env.TAVILY_API_KEY?.trim()),
+    hasGithubToken: Boolean(s.githubToken) || Boolean(githubEnvToken()),
     autocomplete: s.autocomplete
   }
+}
+
+function githubEnvToken(): string | null {
+  return (process.env.GITHUB_TOKEN || process.env.GH_TOKEN)?.trim() || null
 }
 
 export async function setProvider(provider: Provider): Promise<Settings> {
@@ -180,6 +188,23 @@ export async function setTavilyKey(key: string): Promise<Settings> {
   return getSettings()
 }
 
+export async function setGithubToken(token: string): Promise<Settings> {
+  const s = await load()
+  const trimmed = token.trim()
+  let githubToken: string | undefined
+  let encrypted = s.encrypted
+  if (!trimmed) {
+    githubToken = undefined
+  } else if (safeStorage.isEncryptionAvailable()) {
+    githubToken = safeStorage.encryptString(trimmed).toString('base64')
+    encrypted = true
+  } else {
+    githubToken = Buffer.from(trimmed, 'utf-8').toString('base64')
+  }
+  await persist({ ...s, githubToken, encrypted })
+  return getSettings()
+}
+
 export async function setAutocomplete(enabled: boolean): Promise<Settings> {
   const s = await load()
   await persist({ ...s, autocomplete: enabled })
@@ -221,4 +246,19 @@ export async function getTavilyKey(): Promise<string | null> {
     }
   }
   return process.env.TAVILY_API_KEY?.trim() || null
+}
+
+/** Resolve the GitHub token: stored -> env (GITHUB_TOKEN / GH_TOKEN). */
+export async function getGithubToken(): Promise<string | null> {
+  const s = await load()
+  if (s.githubToken) {
+    try {
+      const buf = Buffer.from(s.githubToken, 'base64')
+      if (s.encrypted && safeStorage.isEncryptionAvailable()) return safeStorage.decryptString(buf)
+      return buf.toString('utf-8')
+    } catch {
+      /* fall through to env */
+    }
+  }
+  return (process.env.GITHUB_TOKEN || process.env.GH_TOKEN)?.trim() || null
 }

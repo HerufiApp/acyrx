@@ -16,10 +16,17 @@ import {
   type GitStatus,
   type GitDiffRequest,
   type GitCommitRequest,
+  type GitCloneRequest,
+  type GitCloneResult,
+  type GitBranches,
+  type GitOpResult,
+  type CreateRepoRequest,
   type InlineEditRequest,
   type McpServerConfig,
-  type CompleteCodeRequest
+  type CompleteCodeRequest,
+  type AuthCredentials
 } from '@shared/types'
+import * as auth from './auth'
 import {
   getSettings,
   setProvider,
@@ -27,11 +34,13 @@ import {
   setUserKey,
   setMcpServers,
   setTavilyKey,
+  setGithubToken,
   setAutocomplete,
   reconnectMcp
 } from './settings'
+import * as github from './github'
 import * as sessions from './sessions'
-import { getProject, setProject, getProjectRoot, emitProjectChanged } from './projectState'
+import { getProject, setProject, getProjectRoot, emitProjectChanged, emitAgent } from './projectState'
 import { resolveInProject, toRelative } from './tools/paths'
 import { startWatcher } from './watcher'
 import { sendMessage, cancelAgent, resetConversation } from './agent/loop'
@@ -75,7 +84,23 @@ function stripFences(s: string): string {
   return m ? m[1] : s
 }
 
+/** Open `root` as the active project: set state, reset agent, watch, notify renderer. */
+function openProjectAt(root: string): ProjectInfo {
+  const info: ProjectInfo = { root, name: basename(root) }
+  setProject(info)
+  resetConversation()
+  startWatcher(root)
+  emitProjectChanged(info)
+  return info
+}
+
 export function registerIpc(): void {
+  /* ---------------- auth ---------------- */
+  ipcMain.handle(IPC.authGet, () => auth.getAuthState())
+  ipcMain.handle(IPC.authSignIn, (_e, c: AuthCredentials) => auth.signIn(c.email, c.password))
+  ipcMain.handle(IPC.authSignUp, (_e, c: AuthCredentials) => auth.signUp(c.email, c.password))
+  ipcMain.handle(IPC.authSignOut, () => auth.signOut())
+
   /* ---------------- settings ---------------- */
   ipcMain.handle(IPC.settingsGet, () => getSettings())
   ipcMain.handle(IPC.settingsSetProvider, (_e, provider: Provider) => setProvider(provider))
@@ -87,6 +112,7 @@ export function registerIpc(): void {
     setMcpServers(servers)
   )
   ipcMain.handle(IPC.settingsSetTavilyKey, (_e, key: string) => setTavilyKey(key))
+  ipcMain.handle(IPC.settingsSetGithubToken, (_e, token: string) => setGithubToken(token))
   ipcMain.handle(IPC.settingsSetAutocomplete, (_e, enabled: boolean) => setAutocomplete(enabled))
   ipcMain.handle(IPC.mcpReconnect, () => reconnectMcp())
 
@@ -110,13 +136,7 @@ export function registerIpc(): void {
       title: 'Open Project Folder'
     })
     if (res.canceled || !res.filePaths[0]) return null
-    const root = res.filePaths[0]
-    const info: ProjectInfo = { root, name: basename(root) }
-    setProject(info)
-    resetConversation()
-    startWatcher(root)
-    emitProjectChanged(info)
-    return info
+    return openProjectAt(res.filePaths[0])
   })
 
   ipcMain.handle(IPC.projectGet, (): ProjectInfo | null => getProject())
@@ -154,6 +174,10 @@ export function registerIpc(): void {
 
   /* ---------------- agent ---------------- */
   ipcMain.handle(IPC.agentSend, (_e, req: SendMessageRequest): void => {
+    if (!auth.isAuthenticated()) {
+      emitAgent({ type: 'error', message: 'You must sign in to use the AI features.' })
+      return
+    }
     void sendMessage(req.message)
   })
   ipcMain.handle(IPC.agentCancel, (): void => cancelAgent())
@@ -166,6 +190,7 @@ export function registerIpc(): void {
   ipcMain.handle(IPC.agentUndoCheckpoint, (_e, id: string) => undoCheckpoint(id))
 
   ipcMain.handle(IPC.agentCompleteCode, async (_e, req: CompleteCodeRequest): Promise<string> => {
+    auth.requireAuth()
     const system =
       'You are an inline code-completion engine. Continue the code at the cursor. ' +
       'Output ONLY the text to insert at the cursor — no explanation, no markdown fences. ' +
@@ -179,6 +204,7 @@ export function registerIpc(): void {
   })
 
   ipcMain.handle(IPC.agentInlineEdit, async (_e, req: InlineEditRequest): Promise<void> => {
+    auth.requireAuth()
     const selected = req.fullText.slice(req.start, req.end)
     const system =
       'You are a precise code editor. Rewrite ONLY the selected code according to the instruction. ' +
@@ -205,6 +231,7 @@ export function registerIpc(): void {
   ipcMain.handle(IPC.gitCommit, (_e, req: GitCommitRequest) => git.commit(req.message, req.all))
 
   ipcMain.handle(IPC.gitGenerateMessage, async (): Promise<string> => {
+    auth.requireAuth()
     const staged = await git.diff({ staged: true })
     const diff = staged && !staged.startsWith('(no') ? staged : await git.diffAll()
     if (!diff || diff === '(no changes)') return ''
@@ -215,9 +242,57 @@ export function registerIpc(): void {
   })
 
   ipcMain.handle(IPC.gitExplain, async (): Promise<string> => {
+    auth.requireAuth()
     const diff = await git.diffAll()
     if (!diff || diff === '(no changes)') return 'There are no changes to explain.'
     const system = 'Explain what this diff changes and why, clearly and concisely, as a short review.'
     return completeOnce(system, diff.slice(0, 60_000))
+  })
+
+  /* ---------------- git remotes / github ---------------- */
+  ipcMain.handle(IPC.gitPush, (): Promise<GitOpResult> => git.push())
+  ipcMain.handle(IPC.gitPull, (): Promise<GitOpResult> => git.pull())
+  ipcMain.handle(IPC.gitFetch, (): Promise<GitOpResult> => git.fetch())
+  ipcMain.handle(IPC.gitInit, (): Promise<GitOpResult> => git.init())
+  ipcMain.handle(IPC.gitBranches, (): Promise<GitBranches> => git.branches())
+  ipcMain.handle(IPC.gitCheckout, (_e, branch: string): Promise<GitOpResult> => git.checkout(branch))
+  ipcMain.handle(IPC.gitCreateBranch, (_e, name: string): Promise<GitOpResult> =>
+    git.createBranch(name)
+  )
+  ipcMain.handle(IPC.gitSetRemote, (_e, url: string): Promise<GitOpResult> => git.setRemote(url))
+
+  ipcMain.handle(IPC.gitClone, async (_e, req: GitCloneRequest): Promise<GitCloneResult> => {
+    let parentDir = req.parentDir
+    if (!parentDir) {
+      const win = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0]
+      const res = await dialog.showOpenDialog(win, {
+        properties: ['openDirectory', 'createDirectory'],
+        title: 'Choose where to clone the repository'
+      })
+      if (res.canceled || !res.filePaths[0]) return { ok: false, output: 'Cancelled.', project: null }
+      parentDir = res.filePaths[0]
+    }
+    const result = await git.clone(req.url.trim(), parentDir)
+    if (!result.ok || !result.dir) return { ok: false, output: result.output, project: null }
+    return { ok: true, output: result.output, project: openProjectAt(result.dir) }
+  })
+
+  ipcMain.handle(IPC.githubCreateRepo, async (_e, req: CreateRepoRequest): Promise<GitOpResult> => {
+    const created = await github.createRepo({
+      name: req.name,
+      description: req.description,
+      private: req.private
+    })
+    if (!created.ok || !created.cloneUrl) return { ok: false, output: created.output }
+    if (!req.push) return { ok: true, output: created.output }
+
+    // Publish the current project to the new repo.
+    if (!(await git.isRepo())) await git.init()
+    await git.setRemote(created.cloneUrl)
+    const pushed = await git.push()
+    return {
+      ok: pushed.ok,
+      output: `${created.output}\n${pushed.output}`
+    }
   })
 }

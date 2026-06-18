@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Settings, ProjectInfo, DirEntry, AgentEvent } from '@shared/types'
+import type { Settings, ProjectInfo, DirEntry, AgentEvent, AuthState } from '@shared/types'
 
 /* ---------------- chat model ---------------- */
 
@@ -41,6 +41,9 @@ let counter = 0
 const uid = (): string => `r${Date.now()}-${counter++}`
 
 interface AppState {
+  /* auth */
+  auth: AuthState | null
+
   /* settings / project */
   settings: Settings | null
   project: ProjectInfo | null
@@ -66,6 +69,8 @@ interface AppState {
   sidebarVisible: boolean
   terminalVisible: boolean
   settingsOpen: boolean
+  cloneOpen: boolean
+  publishOpen: boolean
   sidebarView: 'explorer' | 'git'
   diffViewer: { title: string; diff: string } | null
 
@@ -79,6 +84,7 @@ interface AppState {
   terminalHeight: number
 
   /* actions */
+  setAuth: (a: AuthState) => void
   setSettings: (s: Settings) => void
   setProject: (p: ProjectInfo | null) => void
   setChildren: (path: string, entries: DirEntry[]) => void
@@ -99,18 +105,21 @@ interface AppState {
   toggleSidebar: () => void
   toggleTerminal: (v?: boolean) => void
   setSettingsOpen: (v: boolean) => void
+  setCloneOpen: (v: boolean) => void
+  setPublishOpen: (v: boolean) => void
   setSidebarView: (v: 'explorer' | 'git') => void
   openDiffViewer: (title: string, diff: string) => void
   closeDiffViewer: () => void
   clearCheckpoint: () => void
-  setSidebarWidth: (w: number) => void
-  setChatWidth: (w: number) => void
-  setTerminalHeight: (h: number) => void
+  nudgeSidebarWidth: (delta: number) => void
+  nudgeChatWidth: (delta: number) => void
+  nudgeTerminalHeight: (delta: number) => void
 }
 
 const clamp = (v: number, min: number, max: number): number => Math.max(min, Math.min(max, v))
 
 export const useStore = create<AppState>((set, get) => ({
+  auth: null,
   settings: null,
   project: null,
 
@@ -130,6 +139,8 @@ export const useStore = create<AppState>((set, get) => ({
   sidebarVisible: true,
   terminalVisible: true,
   settingsOpen: false,
+  cloneOpen: false,
+  publishOpen: false,
   sidebarView: 'explorer',
   diffViewer: null,
 
@@ -140,6 +151,7 @@ export const useStore = create<AppState>((set, get) => ({
   chatWidth: 384,
   terminalHeight: 224,
 
+  setAuth: (a) => set({ auth: a }),
   setSettings: (s) => set({ settings: s }),
   setProject: (p) =>
     set({
@@ -336,11 +348,16 @@ export const useStore = create<AppState>((set, get) => ({
   toggleSidebar: () => set((st) => ({ sidebarVisible: !st.sidebarVisible })),
   toggleTerminal: (v) => set((st) => ({ terminalVisible: v ?? !st.terminalVisible })),
   setSettingsOpen: (v) => set({ settingsOpen: v }),
+  setCloneOpen: (v) => set({ cloneOpen: v }),
+  setPublishOpen: (v) => set({ publishOpen: v }),
   setSidebarView: (v) => set({ sidebarView: v }),
   openDiffViewer: (title, diff) => set({ diffViewer: { title, diff } }),
   closeDiffViewer: () => set({ diffViewer: null }),
   clearCheckpoint: () => set({ lastCheckpoint: null }),
-  setSidebarWidth: (w) => set({ sidebarWidth: clamp(w, 140, 560) }),
-  setChatWidth: (w) => set({ chatWidth: clamp(w, 280, 720) }),
-  setTerminalHeight: (h) => set({ terminalHeight: clamp(h, 80, 600) })
+  nudgeSidebarWidth: (delta) =>
+    set((s) => ({ sidebarWidth: clamp(s.sidebarWidth + delta, 140, 560) })),
+  nudgeChatWidth: (delta) =>
+    set((s) => ({ chatWidth: clamp(s.chatWidth + delta, 280, 720) })),
+  nudgeTerminalHeight: (delta) =>
+    set((s) => ({ terminalHeight: clamp(s.terminalHeight + delta, 80, 600) }))
 }))

@@ -11,6 +11,11 @@ import { app } from 'electron'
  *   OPENAI_API_KEY=...
  *   TAVILY_API_KEY=...
  *
+ * Supabase auth (gates the AI features) reads:
+ *
+ *   SUPABASE_URL=https://xxxxx.supabase.co
+ *   SUPABASE_ANON_KEY=eyJ...
+ *
  * Real environment variables always win — a value already set in the
  * environment is never overwritten by the file.
  */

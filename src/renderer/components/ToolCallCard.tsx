@@ -21,38 +21,38 @@ export default function ToolCallCard({ item }: { item: ToolItem }): JSX.Element 
   const [open, setOpen] = useState(false)
 
   return (
-    <div className="rounded-md border border-border bg-bg-panel text-[12px]">
+    <div className="rounded-lg border border-border bg-bg-panel text-[12px]">
       <div
-        className="flex cursor-pointer items-center gap-2 px-2 py-1"
+        className="flex cursor-pointer items-center gap-2 px-2.5 py-1.5"
         onClick={() => setOpen((o) => !o)}
       >
-        <span className="opacity-50">{open ? '▾' : '▸'}</span>
-        <span className="font-mono text-accent">{item.name}</span>
-        <span className="truncate font-mono opacity-60">{shortArg(item)}</span>
+        <span className="text-txt-faint">{open ? '▾' : '▸'}</span>
+        <span className="font-mono font-medium text-accent">{item.name}</span>
+        <span className="truncate font-mono text-txt-dim">{shortArg(item)}</span>
         <span
-          className={`ml-auto ${
+          className={`ml-auto flex h-4 w-4 items-center justify-center rounded-full text-[10px] ${
             item.status === 'error'
-              ? 'text-red-400'
+              ? 'bg-red-500/15 text-red-400'
               : item.status === 'ok'
-                ? 'text-green-400'
-                : 'opacity-50'
+                ? 'bg-green-500/15 text-green-400'
+                : 'text-txt-faint'
           }`}
         >
           {STATUS_ICON[item.status]}
         </span>
       </div>
       {open && (
-        <div className="space-y-2 border-t border-border p-2">
+        <div className="space-y-2 border-t border-border p-2.5">
           <div>
-            <div className="mb-1 text-[10px] uppercase opacity-40">Arguments</div>
-            <pre className="overflow-auto rounded bg-black/30 p-2 font-mono text-[11px]">
+            <div className="mb-1 text-[10px] uppercase tracking-wide text-txt-faint">Arguments</div>
+            <pre className="overflow-auto rounded-md bg-black/30 p-2 font-mono text-[11px]">
               {JSON.stringify(item.args, null, 2)}
             </pre>
           </div>
           {item.summary && (
             <div>
-              <div className="mb-1 text-[10px] uppercase opacity-40">Result</div>
-              <pre className="overflow-auto whitespace-pre-wrap rounded bg-black/30 p-2 font-mono text-[11px]">
+              <div className="mb-1 text-[10px] uppercase tracking-wide text-txt-faint">Result</div>
+              <pre className="overflow-auto whitespace-pre-wrap rounded-md bg-black/30 p-2 font-mono text-[11px]">
                 {item.summary}
               </pre>
             </div>
